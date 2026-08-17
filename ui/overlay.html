@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>VR2D Overlay</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: transparent;
+        font: 500 12px/1.3 -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+        -webkit-user-select: none;
+        user-select: none;
+      }
+
+      /*
+       * The grab surface. It deliberately stops short of the top and bottom of
+       * the window so IINA's title bar and on-screen controller stay reachable
+       * — anything under a `data-clickable` element is ours, and swallowing the
+       * playback controls would be a poor trade for a few more pixels of pan.
+       */
+      #grab {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 56px;
+        bottom: 120px;
+        cursor: grab;
+      }
+      #grab.dragging {
+        cursor: grabbing;
+      }
+      #grab.off {
+        display: none;
+      }
+
+      #hud {
+        position: absolute;
+        top: 18px;
+        left: 18px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 12px;
+        border-radius: 10px;
+        color: #fff;
+        background: rgba(0, 0, 0, 0.55);
+        -webkit-backdrop-filter: blur(14px);
+        backdrop-filter: blur(14px);
+        box-shadow: 0 1px 8px rgba(0, 0, 0, 0.4);
+        opacity: 0;
+        transition: opacity 0.3s ease;
+        pointer-events: none;
+        white-space: nowrap;
+      }
+      #hud.visible {
+        opacity: 1;
+      }
+      /* No fade-out mid-gesture — the read-out is the fast feedback channel. */
+      #hud.holding {
+        transition: none;
+        opacity: 1;
+      }
+
+      #map {
+        display: block;
+        flex: none;
+      }
+      #map .field {
+        fill: rgba(255, 255, 255, 0.16);
+        stroke: rgba(255, 255, 255, 0.4);
+        stroke-width: 2;
+      }
+      #map .view {
+        fill: rgba(120, 190, 255, 0.42);
+        stroke: #9fd0ff;
+        stroke-width: 3;
+      }
+      #map .cross {
+        stroke: rgba(255, 255, 255, 0.28);
+        stroke-width: 1.5;
+      }
+
+      #text .title {
+        font-weight: 600;
+      }
+      #text .sub {
+        opacity: 0.68;
+        font-size: 11px;
+      }
+      .num {
+        font-variant-numeric: tabular-nums;
+        font-feature-settings: "tnum";
+      }
+    </style>
+  </head>
+  <body>
+    <div id="hud">
+      <svg id="map" width="66" height="66" viewBox="-90 -90 180 180" aria-hidden="true">
+        <rect id="field" class="field" x="-90" y="-90" width="180" height="180" rx="6" />
+        <line id="crossh" class="cross" x1="-90" y1="0" x2="90" y2="0" />
+        <line id="crossv" class="cross" x1="0" y1="-90" x2="0" y2="90" />
+        <rect id="view" class="view" x="-40" y="-25" width="80" height="50" rx="3" />
+      </svg>
+      <div id="text">
+        <div class="title num" id="angles">0° / 0°</div>
+        <div class="sub" id="summary"></div>
+      </div>
+    </div>
+    <div id="grab" class="off" data-clickable></div>
+
+    <script>
+      (function () {
+        var surface = document.getElementById("grab");
+        var hud = document.getElementById("hud");
+        var mapEl = document.getElementById("map");
+        var fieldEl = document.getElementById("field");
+        var viewEl = document.getElementById("view");
+        var crossH = document.getElementById("crossh");
+        var crossV = document.getElementById("crossv");
+        var anglesEl = document.getElementById("angles");
+        var summaryEl = document.getElementById("summary");
+
+        var DEG = 180 / Math.PI;
+        var RAD = Math.PI / 180;
+
+        // Everything the plugin has told us about the source and the settings.
+        var conf = {
+          enabled: false,
+          showHud: true,
+          dragToPan: true,
+          inHFov: 180,
+          inVFov: 180,
+          sensitivity: 1,
+        };
+
+        /*
+         * The picture itself cannot respond instantly: a pan step has to travel
+         * through mpv's filter chain and show up on the next decoded frame. So
+         * the read-out runs ahead locally using the same maths the plugin uses,
+         * and re-synchronises whenever the plugin reports back. The numbers and
+         * the map track the cursor exactly; the video catches up behind them.
+         */
+        var local = { yaw: 0, pitch: 0, fov: 90 };
+        var dragging = false;
+
+        function clamp(v, lo, hi) {
+          return v < lo ? lo : v > hi ? hi : v;
+        }
+
+        function fovComponents(dFov, w, h) {
+          var diag = Math.sqrt(w * w + h * h);
+          var half = Math.tan((clamp(dFov, 1, 179) / 2) * RAD);
+          return {
+            h: 2 * Math.atan((w / diag) * half) * DEG,
+            v: 2 * Math.atan((h / diag) * half) * DEG,
+          };
+        }
+
+        function clampLocal() {
+          var parts = fovComponents(local.fov, window.innerWidth, window.innerHeight);
+          if (conf.inHFov >= 359) {
+            local.yaw = ((((local.yaw + 180) % 360) + 360) % 360) - 180;
+          } else {
+            var yl = Math.max(0, (conf.inHFov - parts.h) / 2);
+            local.yaw = clamp(local.yaw, -yl, yl);
+          }
+          var pl = Math.max(0, (conf.inVFov - parts.v) / 2);
+          local.pitch = clamp(local.pitch, -pl, pl);
+          return parts;
+        }
+
+        // -- Head-up display ------------------------------------------------
+
+        var hudTimer = null;
+
+        function draw() {
+          var parts = clampLocal();
+
+          var fw = conf.inHFov || 180;
+          var fh = conf.inVFov || 180;
+          mapEl.setAttribute("viewBox", -fw / 2 + " " + -fh / 2 + " " + fw + " " + fh);
+          mapEl.setAttribute("height", Math.round(66 * (fh / fw)));
+          fieldEl.setAttribute("x", -fw / 2);
+          fieldEl.setAttribute("y", -fh / 2);
+          fieldEl.setAttribute("width", fw);
+          fieldEl.setAttribute("height", fh);
+          crossH.setAttribute("x1", -fw / 2);
+          crossH.setAttribute("x2", fw / 2);
+          crossV.setAttribute("y1", -fh / 2);
+          crossV.setAttribute("y2", fh / 2);
+
+          // Screen y grows downward, pitch grows upward.
+          viewEl.setAttribute("x", local.yaw - parts.h / 2);
+          viewEl.setAttribute("y", -local.pitch - parts.v / 2);
+          viewEl.setAttribute("width", parts.h);
+          viewEl.setAttribute("height", parts.v);
+
+          anglesEl.textContent =
+            Math.round(local.yaw) +
+            "° / " +
+            Math.round(local.pitch) +
+            "°  ·  " +
+            Math.round(parts.h) +
+            "° wide";
+        }
+
+        function showHud(hold) {
+          if (!conf.enabled || !conf.showHud) {
+            hud.classList.remove("visible", "holding");
+            return;
+          }
+          hud.classList.add("visible");
+          hud.classList.toggle("holding", !!hold);
+          if (hudTimer) clearTimeout(hudTimer);
+          if (!hold) {
+            hudTimer = setTimeout(function () {
+              hudTimer = null;
+              hud.classList.remove("visible");
+            }, 1600);
+          }
+        }
+
+        iina.onMessage("vr2d:state", function (data) {
+          conf = data;
+          summaryEl.textContent = data.summary || "";
+          // Mid-drag our prediction is ahead of the plugin; adopting its older
+          // values would make the read-out stutter backwards.
+          if (!dragging) {
+            local.yaw = data.yaw;
+            local.pitch = data.pitch;
+            local.fov = data.fov;
+          }
+          surface.style.top = (data.topSafeArea || 0) + "px";
+          surface.style.bottom = (data.bottomSafeArea || 0) + "px";
+          surface.classList.toggle("off", !(data.enabled && data.dragToPan));
+          draw();
+          if (data.enabled) showHud(dragging);
+          else hud.classList.remove("visible", "holding");
+        });
+
+        // -- Drag to pan ----------------------------------------------------
+
+        var last = null;
+        var pending = { dx: 0, dy: 0 };
+        var frame = null;
+        var clickTimer = null;
+        var downAt = 0;
+        var travelled = 0;
+
+        function flush() {
+          if (pending.dx === 0 && pending.dy === 0) return;
+          iina.postMessage("vr2d:drag", {
+            dx: pending.dx,
+            dy: pending.dy,
+            width: window.innerWidth,
+            height: window.innerHeight,
+          });
+          pending.dx = 0;
+          pending.dy = 0;
+        }
+
+        function schedule() {
+          if (frame !== null) return;
+          frame = requestAnimationFrame(function () {
+            frame = null;
+            flush();
+          });
+        }
+
+        surface.addEventListener("mousedown", function (e) {
+          if (!conf.enabled) return;
+          dragging = true;
+          last = { x: e.clientX, y: e.clientY };
+          travelled = 0;
+          downAt = Date.now();
+          surface.classList.add("dragging");
+          showHud(true);
+          // The plugin rebuilds the filter chain when a gesture ends; telling
+          // it the gesture has started keeps that out of the middle of a drag.
+          iina.postMessage("vr2d:gesture", { active: true });
+          e.preventDefault();
+        });
+
+        window.addEventListener("mousemove", function (e) {
+          if (!dragging) return;
+          var dx = e.clientX - last.x;
+          var dy = e.clientY - last.y;
+          last = { x: e.clientX, y: e.clientY };
+          travelled += Math.abs(dx) + Math.abs(dy);
+
+          // Advance the read-out now; the picture follows a frame or two later.
+          var parts = fovComponents(local.fov, window.innerWidth, window.innerHeight);
+          var s = conf.sensitivity == null ? 1 : conf.sensitivity;
+          local.yaw -= (dx / window.innerWidth) * parts.h * s;
+          local.pitch += (dy / window.innerHeight) * parts.v * s;
+          draw();
+
+          pending.dx += dx;
+          pending.dy += dy;
+          schedule();
+        });
+
+        window.addEventListener("mouseup", function () {
+          if (!dragging) return;
+          dragging = false;
+          surface.classList.remove("dragging");
+          flush();
+          iina.postMessage("vr2d:gesture", { active: false });
+          showHud(false);
+
+          // A press that barely moved was a click, not a pan. Hold it briefly
+          // in case a second one turns it into a double-click.
+          if (travelled < 5 && Date.now() - downAt < 400 && clickTimer === null) {
+            clickTimer = setTimeout(function () {
+              clickTimer = null;
+              iina.postMessage("vr2d:click");
+            }, 260);
+          }
+        });
+
+        surface.addEventListener("dblclick", function (e) {
+          if (clickTimer !== null) {
+            clearTimeout(clickTimer);
+            clickTimer = null;
+          }
+          iina.postMessage("vr2d:dblclick");
+          e.preventDefault();
+        });
+
+        // -- Scroll to zoom -------------------------------------------------
+
+        surface.addEventListener(
+          "wheel",
+          function (e) {
+            if (!conf.enabled) return;
+            e.preventDefault();
+            if (!e.deltaY) return;
+            // Trackpads emit many small deltas, mice a few large ones; scaling
+            // by magnitude makes both feel about the same.
+            var magnitude = Math.min(3, Math.max(0.5, Math.abs(e.deltaY) / 40));
+            var notches = (e.deltaY > 0 ? 1 : -1) * magnitude;
+            local.fov = clamp(local.fov * Math.pow(1.1, notches), 15, 150);
+            draw();
+            showHud(false);
+            iina.postMessage("vr2d:zoom", { notches: notches });
+          },
+          { passive: false }
+        );
+
+        draw();
+      })();
+    </script>
+  </body>
+</html>

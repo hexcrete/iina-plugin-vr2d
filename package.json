@@ -1,0 +1,15 @@
+{
+  "name": "iina-vr2d",
+  "version": "1.0.0",
+  "private": true,
+  "description": "IINA plugin that flattens 3D VR video into a pannable 2D view",
+  "scripts": {
+    "test": "node test/run.js",
+    "link": "/Applications/IINA.app/Contents/MacOS/iina-plugin link .",
+    "unlink": "/Applications/IINA.app/Contents/MacOS/iina-plugin unlink .",
+    "pack": "/Applications/IINA.app/Contents/MacOS/iina-plugin pack ."
+  },
+  "devDependencies": {
+    "iina-plugin-definition": "^0.99.4"
+  }
+}

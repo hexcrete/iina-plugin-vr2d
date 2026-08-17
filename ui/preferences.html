@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>VR2D Preferences</title>
+    <style>
+      body {
+        font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+        padding: 4px 2px 24px;
+      }
+      h3 {
+        font-size: 13px;
+        font-weight: 700;
+        margin: 22px 0 8px;
+      }
+      h3:first-of-type {
+        margin-top: 4px;
+      }
+      .row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 7px 0;
+      }
+      .row label.name {
+        flex: 0 0 168px;
+      }
+      .hint {
+        opacity: 0.6;
+        margin: 2px 0 0 0;
+        font-size: 11px;
+      }
+      .hint.indent {
+        margin-left: 176px;
+      }
+      input[type="number"] {
+        width: 68px;
+      }
+      select {
+        min-width: 190px;
+      }
+      hr {
+        border: 0;
+        border-top: 1px solid rgba(128, 128, 128, 0.28);
+        margin: 20px 0 0;
+      }
+      kbd {
+        display: inline-block;
+        padding: 0 5px;
+        border-radius: 4px;
+        border: 1px solid rgba(128, 128, 128, 0.4);
+        font: 500 11px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+      table.keys {
+        border-collapse: collapse;
+        margin-top: 6px;
+      }
+      table.keys td {
+        padding: 3px 16px 3px 0;
+        vertical-align: top;
+      }
+    </style>
+  </head>
+  <body>
+    <h3>Detection</h3>
+
+    <div class="row">
+      <input type="checkbox" id="autoEnable" />
+      <label for="autoEnable">Flatten VR videos automatically</label>
+    </div>
+    <p class="hint">
+      Turns on by itself when the file name or the container metadata clearly says the video is
+      VR — for example <code>…_180x180_3dh_LR.mp4</code>, <code>…_MKX200.mp4</code>, or a file
+      whose stereo layout is tagged in the container.
+    </p>
+
+    <div class="row">
+      <input type="checkbox" id="aggressiveDetection" />
+      <label for="aggressiveDetection">Also act on weak hints</label>
+    </div>
+    <p class="hint">
+      Accepts a bare <code>180</code>/<code>360</code> or a headset name in the file name as
+      enough, provided the frame's shape agrees. More catches, more false positives.
+    </p>
+
+    <hr />
+    <h3>View</h3>
+
+    <div class="row">
+      <label class="name" for="fieldOfView">Starting field of view</label>
+      <input type="number" id="fieldOfView" min="40" max="150" step="5" />
+      <span>degrees across</span>
+    </div>
+    <p class="hint indent">
+      How wide a slice of the sphere fills the window to begin with. Higher shows more at once;
+      much above 120° the edges start to stretch the way a very wide lens does.
+    </p>
+
+    <div class="row">
+      <label class="name" for="eye">Eye to show</label>
+      <select id="eye">
+        <option value="left">Left</option>
+        <option value="right">Right</option>
+      </select>
+    </div>
+
+    <div class="row">
+      <input type="checkbox" id="showHud" />
+      <label for="showHud">Show the direction read-out while panning</label>
+    </div>
+
+    <hr />
+    <h3>Controls</h3>
+
+    <div class="row">
+      <input type="checkbox" id="dragToPan" />
+      <label for="dragToPan">Drag the video to look around</label>
+    </div>
+    <p class="hint">
+      Scroll to zoom. The top and bottom strips of the window stay untouched so the title bar and
+      playback controls keep working — adjust them below if your controls sit elsewhere.
+    </p>
+
+    <div class="row">
+      <label class="name" for="dragSensitivity">Drag sensitivity</label>
+      <input type="number" id="dragSensitivity" min="0.2" max="4" step="0.1" />
+    </div>
+
+    <div class="row">
+      <input type="checkbox" id="invertDrag" />
+      <label for="invertDrag">Invert drag direction</label>
+    </div>
+
+    <div class="row">
+      <label class="name" for="keyStep">Keyboard pan speed</label>
+      <input type="number" id="keyStep" min="5" max="120" step="5" />
+      <span>% of the visible field per second</span>
+    </div>
+
+    <table class="keys">
+      <tr>
+        <td><kbd>⇧</kbd> <kbd>⌥</kbd> <kbd>←</kbd> <kbd>→</kbd> <kbd>↑</kbd> <kbd>↓</kbd></td>
+        <td>Look around</td>
+      </tr>
+      <tr>
+        <td><kbd>⌥</kbd> <kbd>=</kbd> / <kbd>⌥</kbd> <kbd>-</kbd></td>
+        <td>Zoom in / out</td>
+      </tr>
+      <tr>
+        <td><kbd>⌥</kbd> <kbd>0</kbd></td>
+        <td>Recentre the view</td>
+      </tr>
+      <tr>
+        <td><kbd>⌥</kbd> <kbd>P</kbd></td>
+        <td>Try the next projection — the quick way to identify an unlabelled file</td>
+      </tr>
+      <tr>
+        <td><kbd>⌥</kbd> <kbd>L</kbd></td>
+        <td>Try the next stereo layout</td>
+      </tr>
+      <tr>
+        <td><kbd>⌥</kbd> <kbd>E</kbd></td>
+        <td>Swap eye</td>
+      </tr>
+      <tr>
+        <td><kbd>⌥</kbd> <kbd>⇧</kbd> <kbd>V</kbd></td>
+        <td>Turn VR2D on or off</td>
+      </tr>
+    </table>
+    <p class="hint">
+      If IINA already uses one of these, VR2D quietly takes its second choice instead — the menu
+      shows whichever it ended up with.
+    </p>
+
+    <hr />
+    <h3>Performance</h3>
+
+    <div class="row">
+      <label class="name" for="quality">Reprojection quality</label>
+      <select id="quality">
+        <option value="0">Match the display — sharpest</option>
+        <option value="1440">Limit to 1440p</option>
+        <option value="1080">Limit to 1080p</option>
+        <option value="720">Limit to 720p — lightest</option>
+      </select>
+    </div>
+    <p class="hint">
+      An upper bound. VR2D already limits itself to what the source can actually resolve — a
+      1440-wide eye covering 180° holds about 8 pixels per degree, so a 105° view is worth roughly
+      840 of them, and rendering far past that costs time without adding detail. Lower this if
+      panning still feels heavy.
+    </p>
+
+    <div class="row">
+      <label class="name" for="interp">Interpolation</label>
+      <select id="interp">
+        <option value="cubic">Bicubic — recommended</option>
+        <option value="lanczos">Lanczos — sharpest</option>
+        <option value="line">Bilinear</option>
+        <option value="near">Nearest — fastest</option>
+      </select>
+    </div>
+
+    <div class="row">
+      <label class="name" for="updateRate">Pan update rate</label>
+      <input type="number" id="updateRate" min="0" max="30" step="1" />
+      <span>per second, or 0 to pace automatically</span>
+    </div>
+    <p class="hint">
+      Every pan step makes the projection map be recomputed, at roughly 0.06 s of CPU per megapixel
+      rendered — so the affordable rate depends on how large a window you are filling. Left at 0,
+      VR2D works it out from the current size. It costs nothing once you stop moving.
+    </p>
+
+    <hr />
+    <h3>Safe areas</h3>
+    <p class="hint">
+      Height in points, measured from the top and bottom of the window, where dragging is ignored
+      so IINA's own controls stay clickable.
+    </p>
+
+    <div class="row">
+      <label class="name" for="topSafeArea">Top</label>
+      <input type="number" id="topSafeArea" min="0" max="400" step="4" />
+    </div>
+
+    <div class="row">
+      <label class="name" for="bottomSafeArea">Bottom</label>
+      <input type="number" id="bottomSafeArea" min="0" max="400" step="4" />
+    </div>
+
+    <script>
+      (function () {
+        var preferences = window.iina.preferences;
+
+        // key -> how to read the control back into a preference value
+        var FIELDS = {
+          autoEnable: "bool",
+          aggressiveDetection: "bool",
+          dragToPan: "bool",
+          showHud: "bool",
+          invertDrag: "bool",
+          fieldOfView: "int",
+          quality: "int",
+          updateRate: "int",
+          keyStep: "int",
+          topSafeArea: "int",
+          bottomSafeArea: "int",
+          dragSensitivity: "float",
+          eye: "string",
+          interp: "string",
+        };
+
+        // Must match Info.json's preferenceDefaults. Without this, a setting
+        // that has never been changed shows as unchecked/blank even when it is
+        // on, so the page disagrees with what the plugin is actually doing.
+        var DEFAULTS = {
+          autoEnable: true,
+          aggressiveDetection: false,
+          dragToPan: true,
+          showHud: true,
+          invertDrag: false,
+          fieldOfView: 105,
+          quality: 0,
+          interp: "cubic",
+          updateRate: 0,
+          dragSensitivity: 1,
+          keyStep: 35,
+          eye: "left",
+          bottomSafeArea: 120,
+          topSafeArea: 56,
+        };
+
+        Object.keys(FIELDS).forEach(function (key) {
+          var el = document.getElementById(key);
+          if (!el) return;
+          var type = FIELDS[key];
+
+          preferences.get(key, function (value) {
+            if (value === undefined || value === null || value === "") {
+              value = DEFAULTS[key];
+            }
+            if (value === undefined) return;
+            if (type === "bool") el.checked = value === true || value === "true";
+            else el.value = value;
+          });
+
+          el.addEventListener("change", function () {
+            var value;
+            if (type === "bool") value = el.checked;
+            else if (type === "int") value = parseInt(el.value, 10);
+            else if (type === "float") value = parseFloat(el.value);
+            else value = el.value;
+            if ((type === "int" || type === "float") && !isFinite(value)) return;
+            preferences.set(key, value);
+          });
+        });
+      })();
+    </script>
+  </body>
+</html>
