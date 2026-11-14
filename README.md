@@ -3,6 +3,9 @@
 An [IINA](https://iina.io) plugin that plays 3D VR video as a flat 2D picture you can look around
 in — no headset, no stereo, just a normal window you pan and zoom.
 
+This fork of [fetzu/VR2D](https://github.com/fetzu/iina-plugin-vr2d) adds IINA 1.5
+compatibility, fixes rotation drift, and exports flattened clips to MP4.
+
 Point it at a `..._180_180x180_3dh_LR.mp4` or a `..._MKX200.mp4` and it works out what the file is
 and turns itself on. Ordinary videos are left completely alone.
 
@@ -38,15 +41,17 @@ player windows at once were each exercised as well.
 In IINA, open **Settings → Plugins → Install from GitHub** and enter:
 
 ```
-fetzu/iina-plugin-vr2d
+hexcrete/iina-plugin-vr2d
 ```
 
-Then switch VR2D on in the plugin list. IINA checks this repository for updates on its own.
+Then switch VR2D on in the plugin list. If you installed the original VR2D, install
+from the fork and accept IINA's reinstall prompt. This switches future update checks
+to the fork. Both builds use the same plugin ID.
 
 To work on it instead, link a local checkout as a development plugin:
 
 ```bash
-git clone https://github.com/fetzu/iina-plugin-vr2d.git
+git clone https://github.com/hexcrete/iina-plugin-vr2d.git
 cd iina-plugin-vr2d
 /Applications/IINA.app/Contents/MacOS/iina-plugin link .
 ```
